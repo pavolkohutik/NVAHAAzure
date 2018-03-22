@@ -5,31 +5,24 @@ Write-Output -InputObject "PowerShell Timer trigger function executed at:$(Get-D
     This script is an example for monitoring PA firewall status and performing
     fail-over and/or fail-back.
 
-    This script is used as part of an Azure Timer Trigger function.  As setup,
-    the following items must be configured:
-    - Pre-create Azure ResourceGroups, virtual firewalls, Virtual Networks and Subnets
-    - Create Azure Timer Function 
-    - Set Function App Settings with credentials
-    SP_PASSWORD, SP_USERNAME, TENANTID, AZURECLOUD must be added
-    - Set Firewall VM names and Resource Group
-    FW1NAME, FW2NAME, FWMONITOR, FW1FQDN, FW1PORT, FW2FQDN, FW2PORT, FWRGNAME, FWTRIES, FWDELAY, FWUDRTAG must be added
-    - Set Timer Schedule where positions represent: Seconds - Minutes - Hours - Day - Month - DayofWeek
-    Example:  "*/30 * * * * *" to run on multiples of 30 seconds
-    Example:  "0 */5 * * * *" to run on multiples of 5 minutes on the 0-second mark
-    - Set script variables below
+    This script is used as part of an Azure Function App called by a Timer Trigger event.  
     
-    Note:  $monitor = "VMStatus" or $monitor = "TCPPort" like examples here
+    To setup, the following items must be configured:
 
-    $monitor = "VMStatus"
-    $rgName = "AzureRGName"
-    $vmFW1Name = "AzureFW1Name"
-    $vmFW2Name = "AzureFW2Name"
-    -- or -- 
-    $monitor = "TCPPort"
-    $tcpFW1Server = "www1.mydomain.com"
-    $tcpFW1Port = 80
-    $tcpFW2Server = "www2.mydomain.com"
-    $tcpFW2Port = 443
+    - Pre-create Azure ResourceGroups, virtual firewalls, Virtual Networks and Subnets
+
+    - Create Azure Timer Function 
+
+    - Set Function App Settings with credentials
+      SP_PASSWORD, SP_USERNAME, TENANTID, SUBSCRIPTIONID, AZURECLOUD must be added
+
+    - Set Firewall VM names and Resource Group in Function App Settings
+      FW1NAME, FW2NAME, FWMONITOR, FW1FQDN, FW1PORT, FW2FQDN, FW2PORT, FWRGNAME, FWTRIES, FWDELAY, FWUDRTAG must be added
+      FWMONITOR = "VMStatus" or "TCPPort" - If using "TCPPort", then also set FW1FQDN, FW2FQDN, FW1PORT and FW2PORT values
+
+    - Set Timer Schedule where positions represent: Seconds - Minutes - Hours - Day - Month - DayofWeek
+      Example:  "*/30 * * * * *" to run on multiples of 30 seconds
+      Example:  "0 */5 * * * *" to run on multiples of 5 minutes on the 0-second mark
 #>
 
 #**************************************************************
@@ -38,8 +31,8 @@ Write-Output -InputObject "PowerShell Timer trigger function executed at:$(Get-D
 
 $vmFW1Name = $env:FW1NAME              # Set the Name of the primary firewall
 $vmFW2Name = $env:FW2NAME              # Set the Name of the secondaryfirewall
-$Fw1RGName = $env:FWRGNAME       # Set the ResourceGroup that contains Fw1
-$Fw2RGName = $env:FWRGNAME       # Set the ResourceGroup that contains Fw2
+$Fw1RGName = $env:FWRGNAME             # Set the ResourceGroup that contains Fw1
+$Fw2RGName = $env:FWRGNAME             # Set the ResourceGroup that contains Fw2
 
 <#
     Set the parameter $monitor to  "VMStatus" if the current state 
@@ -50,7 +43,8 @@ $Fw2RGName = $env:FWRGNAME       # Set the ResourceGroup that contains Fw2
     of the firewall is to be tested by connecting through the firewall 
     to remote sites
 #>
-$monitor = $env:FWMONITOR
+
+$monitor = $env:FWMONITOR              # "VMStatus" or "TCPPort" are valid values
 
 #**************************************************************
 #    The parameters below are required if using "TCPPort" mode
