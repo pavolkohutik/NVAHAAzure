@@ -15,6 +15,7 @@ Write-Output -InputObject "PowerShell Timer trigger function executed at:$(Get-D
 
     - Set Function App Settings with credentials
       SP_PASSWORD, SP_USERNAME, TENANTID, SUBSCRIPTIONID, AZURECLOUD must be added
+      AZURECLOUD = "AzureCloud" or "AzureUSGovernment"
 
     - Set Firewall VM names and Resource Group in Function App Settings
       FW1NAME, FW2NAME, FWMONITOR, FW1FQDN, FW1PORT, FW2FQDN, FW2PORT, FWRGNAME, FWTRIES, FWDELAY, FWUDRTAG must be added
