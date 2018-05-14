@@ -79,6 +79,16 @@ $intSleep = $env:FWDELAY          # Delay in seconds between tries
     be "Down"
 #>
 
+Function Send-AlertMessage ($message)
+{
+    $mailServers = (Resolve-DnsName -Type MX -Name $env:FWMAILDOMAINMX).NameExchange
+    $mailFrom = $env:FWMAILFROM
+    $mailTo = $env:FWMAILTO
+
+    try { Send-MailMessage -SmtpServer $mailServers[1] -From $mailFrom -To $mailTo -Subject $message -Body $message }
+    catch { Send-MailMessage -SmtpServer $mailServers[2] -From $mailFrom -To $mailTo -Subject $mesage -Body $message }
+}
+
 Function Test-VM-Status ($VM, $FwResourceGroup) 
 {
   $VMDetail = Get-AzureRmVM -ResourceGroupName $FwResourceGroup -Name $VM -Status
@@ -142,10 +152,13 @@ function Failover
   
     $UpdateTable = [scriptblock]{param($table) Set-AzureRmRouteTable -RouteTable $table}
 
-    &$UpdateTable $table 
+    &$UpdateTable�$table
 
+    }
   }
-}
+
+  Send-AlertMessage -message "PAN Alert: Failover to Secondary FW"
+
 }
 
 <#
@@ -187,9 +200,12 @@ function Failback {
 
     $UpdateTable = [scriptblock]{param($table) Set-AzureRmRouteTable -RouteTable $table}
 
-    &$UpdateTable $table  
+    &$UpdateTable�$table 
+    }
   }
-}
+
+  Send-AlertMessage -message "PAN Alert: Failback to Primary FW"
+
 }
 
 <#
