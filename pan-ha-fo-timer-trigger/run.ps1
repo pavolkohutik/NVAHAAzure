@@ -289,6 +289,11 @@ For ($ctr = 1; $ctr -le $intTries; $ctr++)
   Start-Sleep $intSleep
 }
 
+# Reset individual test status and determine overall firewall status
+
+$FW1Down = $False
+$FW2Down = $False
+
 if ($ctrFW1 -eq $intTries) 
 {
   $FW1Down = $True
