@@ -1,4 +1,4 @@
-Write-Output -InputObject "PowerShell Timer trigger function executed at:$(Get-Date)"
+Write-Output -InputObject "HA NVA timer trigger function executed at:$(Get-Date)"
 <#     
     High Availability (HA) Network Virtual Appliance (NVA) Failover Function
 
