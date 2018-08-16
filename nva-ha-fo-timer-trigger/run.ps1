@@ -1,76 +1,80 @@
+#-------------------------------------------------------------------------
+#
+# Copyright (c) Microsoft.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+#--------------------------------------------------------------------------
+#
+# High Availability (HA) Network Virtual Appliance (NVA) Failover Function
+#
+# This script is an example for monitoring HA NVA firewall status and performing
+# fail-over and/or fail-back.
+#
+# This script is used as part of an Azure function app called by a Timer Trigger event.  
+#
+# To configure this function app, the following items must be setup:
+#
+#   - Provision the pre-requisite Azure Resource Groups, Virtual Networks and Subnets, Network Virtual Appliances
+#
+#   - Create an Azure timer function app
+#
+#   - Set the Azure function app settings with credentials
+#     SP_PASSWORD, SP_USERNAME, TENANTID, SUBSCRIPTIONID, AZURECLOUD must be added
+#     AZURECLOUD = "AzureCloud" or "AzureUSGovernment"
+#
+#   - Set Firewall VM names and Resource Group in the Azure function app settings
+#     FW1NAME, FW2NAME, FWMONITOR, FW1FQDN, FW1PORT, FW2FQDN, FW2PORT, FWRGNAME, FWTRIES, FWDELAY, FWUDRTAG must be added
+#     FWMONITOR = "VMStatus" or "TCPPort" - If using "TCPPort", then also set FW1FQDN, FW2FQDN, FW1PORT and FW2PORT values
+#
+#   - Set Timer Schedule where positions represent: Seconds - Minutes - Hours - Day - Month - DayofWeek
+#     Example:  "*/30 * * * * *" to run on multiples of 30 seconds
+#     Example:  "0 */5 * * * *" to run on multiples of 5 minutes on the 0-second mark
+#
+#--------------------------------------------------------------------------
+
 Write-Output -InputObject "HA NVA timer trigger function executed at:$(Get-Date)"
-<#     
-    High Availability (HA) Network Virtual Appliance (NVA) Failover Function
 
-    This script is an example for monitoring HA NVA firewall status and performing
-    fail-over and/or fail-back.
+#--------------------------------------------------------------------------
+# Set firewall monitoring variables here
+#--------------------------------------------------------------------------
 
-    This script is used as part of an Azure Function App called by a Timer Trigger event.  
-    
-    To setup, the following items must be configured:
+$VMFW1Name = $env:FW1NAME      # Set the Name of the primary NVA firewall
+$VMFW2Name = $env:FW2NAME      # Set the Name of the secondary NVA firewall
+$FW1RGName = $env:FWRGNAME     # Set the ResourceGroup that contains FW1
+$FW2RGName = $env:FWRGNAME     # Set the ResourceGroup that contains FW2
+$Monitor = $env:FWMONITOR      # "VMStatus" or "TCPPort" are valid values
 
-    - Pre-create Azure Resource Groups, Virtual Networks and Subnets, Network Virtual Appliances
+#--------------------------------------------------------------------------
+# The parameters below are required if using "TCPPort" mode
+#--------------------------------------------------------------------------
 
-    - Create Azure Timer Function 
+$TCPFW1Server = $env:FW1FQDN   # Hostname of the site to be monitored via the primary NVA firewall if using "TCPPort"
+$TCPFW1Port = $env:FW1PORT     # TCP Port of the site to be monitored via the primary NVA firewall if using "TCPPort"
+$TCPFW2Server = $env:FW2FQDN   # Hostname of the site to be monitored via the secondary NVA firewall if using "TCPPort"
+$TCPFW2Port = $env:FW2PORT     # TCP Port of the site to be monitored via the secondary NVA firewall if using "TCPPort"
 
-    - Set Function App Settings with credentials
-      SP_PASSWORD, SP_USERNAME, TENANTID, SUBSCRIPTIONID, AZURECLOUD must be added
-      AZURECLOUD = "AzureCloud" or "AzureUSGovernment"
-
-    - Set Firewall VM names and Resource Group in Function App Settings
-      FW1NAME, FW2NAME, FWMONITOR, FW1FQDN, FW1PORT, FW2FQDN, FW2PORT, FWRGNAME, FWTRIES, FWDELAY, FWUDRTAG must be added
-      FWMONITOR = "VMStatus" or "TCPPort" - If using "TCPPort", then also set FW1FQDN, FW2FQDN, FW1PORT and FW2PORT values
-
-    - Set Timer Schedule where positions represent: Seconds - Minutes - Hours - Day - Month - DayofWeek
-      Example:  "*/30 * * * * *" to run on multiples of 30 seconds
-      Example:  "0 */5 * * * *" to run on multiples of 5 minutes on the 0-second mark
-#>
-
-#**************************************************************
-#          Set firewall monitoring variables here
-#**************************************************************
-
-$VMFW1Name = $env:FW1NAME              # Set the Name of the primary NVA firewall
-$VMFW2Name = $env:FW2NAME              # Set the Name of the secondary NVA firewall
-$FW1RGName = $env:FWRGNAME             # Set the ResourceGroup that contains FW1
-$FW2RGName = $env:FWRGNAME             # Set the ResourceGroup that contains FW2
-
-<#
-    Set the parameter $Monitor to  "VMStatus" if the current state 
-    of the firewall is monitored.  The firewall will be marked as 
-    down if function does not receive a "Running" response to the api call
-
-    Set the parameter $Monitor to "TCPPort"  if the forwarding state
-    of the firewall is to be tested by connecting through the firewall 
-    to internal sites or applications
-#>
-
-$Monitor = $env:FWMONITOR              # "VMStatus" or "TCPPort" are valid values
-
-#**************************************************************
-#    The parameters below are required if using "TCPPort" mode
-#**************************************************************
-
-$TCPFW1Server = $env:FW1FQDN   # Hostname of the site to be monitored if using "TCPPort"
-$TCPFW1Port = $env:FW1PORT
-$TCPFW2Server = $env:FW2FQDN
-$TCPFW2Port = $env:FW2PORT
-
-#**************************************************************
+#--------------------------------------------------------------------------
 # Set the failover and failback behavior for the firewalls
-#**************************************************************
+#--------------------------------------------------------------------------
 
-$FailOver = $True          # Trigger to enable fail-over to FW2 if FW1 drops when active
-$FailBack = $True          # Trigger to enable fail-back to FW1 if FW2 drops when active
+$FailOver = $True              # Trigger to enable fail-over to secondary NVA firewall if primary NVA firewall drops when active
+$FailBack = $True              # Trigger to enable fail-back to primary NVA firewall is secondary NVA firewall drops when active
+$IntTries = $env:FWTRIES       # Number of Firewall tests to try 
+$IntSleep = $env:FWDELAY       # Delay in seconds between tries
 
-# FW is deemed down if ALL IntTries fail with IntSeconds between tries
-
-$IntTries = $env:FWTRIES          # Number of Firewall tests to try 
-$IntSleep = $env:FWDELAY          # Delay in seconds between tries
-
-#**************************************************************
-# Functions Code Block
-#**************************************************************
+#--------------------------------------------------------------------------
+# Code blocks for supporting functions
+#--------------------------------------------------------------------------
 
 Function Send-AlertMessage ($Message)
 {
@@ -105,38 +109,40 @@ Function Test-TCPPort ($Server, $Port)
   return $Wait
 }
 
-Function Failover 
-  {
+Function Start-Failover 
+{
   foreach ($SubscriptionID in $Script:ListOfSubscriptionIDs){
-  Set-AzureRmContext -SubscriptionId $SubscriptionID
-  $RTable = @()
-  $TagValue = $env:FWUDRTAG
-  $Res = Find-AzureRmResource -TagName nva_ha_udr -TagValue $TagValue
+    Set-AzureRmContext -SubscriptionId $SubscriptionID
+    $RTable = @()
+    $TagValue = $env:FWUDRTAG
+    $Res = Find-AzureRmResource -TagName nva_ha_udr -TagValue $TagValue
 
-  foreach ($RTable in $Res)
+    foreach ($RTable in $Res)
     {
-    $Table = Get-AzureRmRouteTable -ResourceGroupName $RTable.ResourceGroupName -Name $RTable.Name
-    foreach ($RouteName in $Table.Routes){
-      Write-Output -InputObject "Updating route table..."
-      Write-Output -InputObject $RTable.Name
-
-      for ($i = 0; $i -lt $PrimaryInts.count; $i++)
+      $Table = Get-AzureRmRouteTable -ResourceGroupName $RTable.ResourceGroupName -Name $RTable.Name
+      
+      foreach ($RouteName in $Table.Routes)
       {
-        if($RouteName.NextHopIpAddress -eq $SecondaryInts[$i])
-        {
-          Write-Output -InputObject 'Secondary NVA is already ACTIVE' 
-          
-        }
-        elseif($RouteName.NextHopIpAddress -eq $PrimaryInts[$i])
-        {
-          Set-AzureRmRouteConfig -Name $RouteName.Name  -NextHopType VirtualAppliance -RouteTable $Table -AddressPrefix $RouteName.AddressPrefix -NextHopIpAddress $SecondaryInts[$i] 
-        }
-      }
-    }
-  
-    $UpdateTable = [scriptblock]{param($Table) Set-AzureRmRouteTable -RouteTable $Table}
+        Write-Output -InputObject "Updating route table..."
+        Write-Output -InputObject $RTable.Name
 
-    &$UpdateTable $Table
+        for ($i = 0; $i -lt $PrimaryInts.count; $i++)
+        {
+          if($RouteName.NextHopIpAddress -eq $SecondaryInts[$i])
+          {
+            Write-Output -InputObject 'Secondary NVA is already ACTIVE' 
+            
+          }
+          elseif($RouteName.NextHopIpAddress -eq $PrimaryInts[$i])
+          {
+            Set-AzureRmRouteConfig -Name $RouteName.Name  -NextHopType VirtualAppliance -RouteTable $Table -AddressPrefix $RouteName.AddressPrefix -NextHopIpAddress $SecondaryInts[$i] 
+          }
+        }
+
+      }
+  
+      $UpdateTable = [scriptblock]{param($Table) Set-AzureRmRouteTable -RouteTable $Table}
+      &$UpdateTable $Table
 
     }
   }
@@ -145,37 +151,41 @@ Function Failover
 
 }
 
-Function Failback {
-  foreach ($SubscriptionID in $Script:ListOfSubscriptionIDs){
-  Set-AzureRmContext -SubscriptionId $SubscriptionID
-  $TagValue = $env:FWUDRTAG
-  $Res = Find-AzureRmResource -TagName nva_ha_udr -TagValue $TagValue
-
-  foreach ($RTable in $Res)
+Function Start-Failback 
+{
+  foreach ($SubscriptionID in $Script:ListOfSubscriptionIDs)
   {
-    $Table = Get-AzureRmRouteTable -ResourceGroupName $RTable.ResourceGroupName -Name $RTable.Name
+    Set-AzureRmContext -SubscriptionId $SubscriptionID
+    $TagValue = $env:FWUDRTAG
+    $Res = Find-AzureRmResource -TagName nva_ha_udr -TagValue $TagValue
 
-    foreach ($RouteName in $Table.Routes)
+    foreach ($RTable in $Res)
     {
-      Write-Output -InputObject "Updating route table..."
-      Write-Output -InputObject $RTable.Name
-      for ($i = 0; $i -lt $PrimaryInts.count; $i++)
+      $Table = Get-AzureRmRouteTable -ResourceGroupName $RTable.ResourceGroupName -Name $RTable.Name
+
+      foreach ($RouteName in $Table.Routes)
       {
-        if($RouteName.NextHopIpAddress -eq $PrimaryInts[$i])
+        Write-Output -InputObject "Updating route table..."
+        Write-Output -InputObject $RTable.Name
+
+        for ($i = 0; $i -lt $PrimaryInts.count; $i++)
         {
-          Write-Output -InputObject 'Primary NVA is already ACTIVE' 
-        
+          if($RouteName.NextHopIpAddress -eq $PrimaryInts[$i])
+          {
+            Write-Output -InputObject 'Primary NVA is already ACTIVE' 
+          
+          }
+          elseif($RouteName.NextHopIpAddress -eq $SecondaryInts[$i])
+          {
+            Set-AzureRmRouteConfig -Name $RouteName.Name  -NextHopType VirtualAppliance -RouteTable $Table -AddressPrefix $RouteName.AddressPrefix -NextHopIpAddress $PrimaryInts[$i]
+          }  
         }
-        elseif($RouteName.NextHopIpAddress -eq $SecondaryInts[$i])
-        {
-          Set-AzureRmRouteConfig -Name $RouteName.Name  -NextHopType VirtualAppliance -RouteTable $Table -AddressPrefix $RouteName.AddressPrefix -NextHopIpAddress $PrimaryInts[$i]
-        }  
+
       }  
-    }  
 
-    $UpdateTable = [scriptblock]{param($Table) Set-AzureRmRouteTable -RouteTable $Table}
+      $UpdateTable = [scriptblock]{param($Table) Set-AzureRmRouteTable -RouteTable $Table}
+      &$UpdateTable $Table 
 
-    &$UpdateTable $Table 
     }
   }
 
@@ -191,10 +201,12 @@ Function Get-FWInterfaces
 
   foreach($Nic in $Nics)
   {
+
     if (($Nic.VirtualMachine.Id -EQ $VMS1.Id) -Or ($Nic.VirtualMachine.Id -EQ $VMS2.Id)) 
     {
       $VM = $VMS | Where-Object -Property Id -EQ -Value $Nic.VirtualMachine.Id
       $Prv = $Nic.IpConfigurations | Select-Object -ExpandProperty PrivateIpAddress  
+
       if ($VM.Name -eq $VMFW1Name)
       {
         $Script:PrimaryInts += $Prv
@@ -203,21 +215,22 @@ Function Get-FWInterfaces
       {
         $Script:SecondaryInts += $Prv
       }
+
     }
+
   }
 }
 
-Function Get-Subscriptions {
+Function Get-Subscriptions
+{
   Write-Output -InputObject "Enumerating all subscriptins ..."
   $Script:ListOfSubscriptionIDs = (Get-AzureRmSubscription).SubscriptionId
   Write-Output -InputObject $Script:ListOfSubscriptionIDs
 }
 
-#**************************************************************
-# Main Code Block                            
-#**************************************************************
-# Set Service Principal Credentials and establish your Azure RM Context
-# SP_PASSWORD, SP_USERNAME, TENANTID, SUBSCRIPTIONID and AZURECLOUD are app settings
+#--------------------------------------------------------------------------
+# Main code block for Azure function app                       
+#--------------------------------------------------------------------------
 
 $Password = ConvertTo-SecureString $env:SP_PASSWORD -AsPlainText -Force
 $Credential = New-Object System.Management.Automation.PSCredential ($env:SP_USERNAME, $Password)
@@ -231,7 +244,7 @@ $Script:PrimaryInts = @()
 $Script:SecondaryInts = @()
 $Script:ListOfSubscriptionIDs = @()
 
-# Check firewall status $intTries with $intSleep between tries
+# Check NVA firewall status $intTries with $intSleep between tries
 
 $CtrFW1 = 0
 $CtrFW2 = 0
@@ -243,37 +256,40 @@ $VMS = Get-AzureRmVM
 Get-Subscriptions
 Get-FWInterfaces
 
+# Test primary and secondary NVA firewall status 
+
 For ($Ctr = 1; $Ctr -le $IntTries; $Ctr++)
 {
-  # Test FW States based on VMStatus (if specified)
+  
   if ($Monitor -eq 'VMStatus')
   {
-    $FW1Down = Test-VM-Status -VM $VMFW1Name -FwResourceGroup $FW1RGName
-    $FW2Down = Test-VM-Status -VM $VMFW2Name -FwResourceGroup $FW2RGName
+    $FW1Down = Test-VMStatus -VM $VMFW1Name -FwResourceGroup $FW1RGName
+    $FW2Down = Test-VMStatus -VM $VMFW2Name -FwResourceGroup $FW2RGName
   }
-  # Test FW States based on TCPPort checks (if specified)
+
   if ($Monitor -eq 'TCPPort')
   {
-    $FW1Down = -not (Test-TCP-Port -server $TCPFW1Server -port $TCPFW1Port)
-    $FW2Down = -not (Test-TCP-Port -server $TCPFW2Server -port $TCPFW2Port)
+    $FW1Down = -not (Test-TCPPort -Server $TCPFW1Server -Port $TCPFW1Port)
+    $FW2Down = -not (Test-TCPPort -Server $TCPFW2Server -Port $TCPFW2Port)
   }
+
   Write-Output -InputObject "Pass $Ctr of $IntTries - FW1Down is $FW1Down, FW2Down is $FW2Down"
 
   if ($FW1Down) 
   {
     $CtrFW1++
   }
+
   if ($FW2Down) 
   {
     $CtrFW2++
   }
 
   Write-Output -InputObject "Sleeping $IntSleep seconds"
-
   Start-Sleep $IntSleep
 }
 
-# Reset individual test status and determine overall firewall status
+# Reset individual test status and determine overall NVA firewall status
 
 $FW1Down = $False
 $FW2Down = $False
@@ -282,19 +298,20 @@ if ($CtrFW1 -eq $intTries)
 {
   $FW1Down = $True
 }
+
 if ($CtrFW2 -eq $intTries) 
 {
   $FW2Down = $True
 }
 
-# Fail-over logic tree
+# Failover or failback if needed
 
 if (($FW1Down) -and -not ($FW2Down))
 {
   if ($FailOver)
   {
     Write-Output -InputObject 'FW1 Down - Failing over to FW2'
-    Failover 
+    Start-Failover 
   }
 }
 elseif (-not ($FW1Down) -and ($FW2Down))
@@ -302,7 +319,7 @@ elseif (-not ($FW1Down) -and ($FW2Down))
   if ($FailBack)
   {
     Write-Output -InputObject 'FW2 Down - Failing back to FW1'
-    Failback
+    Start-Failback
   }
   else 
   {
