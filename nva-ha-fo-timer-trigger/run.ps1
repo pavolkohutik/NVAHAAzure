@@ -55,7 +55,7 @@ $FW2RGName = $env:FWRGNAME     # Set the ResourceGroup that contains FW2
 $Monitor = $env:FWMONITOR      # "VMStatus" or "TCPPort" are valid values
 
 #--------------------------------------------------------------------------
-# The parameters below are required if using "TCPPort" mode
+# The parameters below are required if using "TCPPort" mode for monitoring
 #--------------------------------------------------------------------------
 
 $TCPFW1Server = $env:FW1FQDN   # Hostname of the site to be monitored via the primary NVA firewall if using "TCPPort"
