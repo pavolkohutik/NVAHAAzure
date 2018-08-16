@@ -17,8 +17,8 @@
 #
 # High Availability (HA) Network Virtual Appliance (NVA) Failover Function
 #
-# This script is an example for monitoring HA NVA firewall status and performing
-# fail-over and/or fail-back.
+# This script provides a sample for monitoring HA NVA firewall status and performing
+# failover and/or failback if needed.
 #
 # This script is used as part of an Azure function app called by a Timer Trigger event.  
 #
