@@ -26,4 +26,4 @@ jobs:
           app-name: 'PowershellTestRobo'
           slot-name: 'Production'
           package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_6BF15A51809C4117A81E996613B56E76 }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_E6CAE6C7708A418FBAAAC5718C4DE330 }}
