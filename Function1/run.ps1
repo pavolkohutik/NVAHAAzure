@@ -331,6 +331,15 @@ elseif (($FW1Down) -and ($FW2Down))
   Write-Output -InputObject 'Both FW1 and FW2 Down - Manual recovery action required'
   Send-AlertMessage -message "NVA Alert: Both FW1 and FW2 Down - Manual recovery action is required"
 }
+elseif (-not ($FW1Down) -and -not ($FW2Down))
+{
+	if ($FailOver)
+  {
+    Write-Output -InputObject 'FW1 up - Failing over to FW1'
+    Start-Failover 
+  }
+ 
+}
 else
 {
   Write-Output -InputObject 'Both FW1 and FW2 Up - No action is required'
