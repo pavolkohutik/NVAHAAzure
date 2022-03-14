@@ -336,7 +336,7 @@ elseif (-not ($FW1Down) -and -not ($FW2Down))
 	if ($FailOver)
   {
     Write-Output -InputObject 'FW1 up - Failing over to FW1'
-    Start-Failover 
+    Start-Failback 
   }
  
 }
